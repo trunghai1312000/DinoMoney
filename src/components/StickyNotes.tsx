@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, X, Bold, Italic, Underline, Palette, Trash2, GripHorizontal, LayoutGrid } from 'lucide-react';
+import * as db from '../services/db'; // Import Backend
 
 interface Note {
   id: string;
@@ -50,28 +51,35 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Load from DB
   useEffect(() => {
-    const saved = localStorage.getItem('sticky-notes-v2');
-    if (saved) {
-      setNotes(JSON.parse(saved));
-    } else {
-        setNotes([{
-            id: 'demo', title: 'Hello!', content: 'Ghi chú của bạn ở đây.\nKéo thả thoải mái nhé!',
-            x: 100, y: 100, width: 240, height: 260,
-            colorBg: 'bg-[#fff7b1]', colorBorder: 'border-[#ffe066]',
-            textColor: 'text-zinc-900', isBold: false, isItalic: false, isUnderline: false, rotate: -2
-        }]);
-    }
-  }, []);
+    const loadNotes = async () => {
+        const data = await db.getNotes();
+        if (data.length > 0) setNotes(data);
+        else {
+             // Init demo note if empty
+             const demo: Note = {
+                id: crypto.randomUUID(), title: 'Hello!', content: 'Ghi chú của bạn ở đây.\nKéo thả thoải mái nhé!',
+                x: 100, y: 100, width: 240, height: 260,
+                colorBg: 'bg-[#fff7b1]', colorBorder: 'border-[#ffe066]',
+                textColor: 'text-zinc-900', isBold: false, isItalic: false, isUnderline: false, rotate: -2
+            };
+            setNotes([demo]);
+            await db.saveNote(demo);
+        }
+    };
+    if (isOpen) loadNotes();
+  }, [isOpen]);
 
-  useEffect(() => {
-    localStorage.setItem('sticky-notes-v2', JSON.stringify(notes));
-  }, [notes]);
+  // Save to DB on Change (Debounce could be added for performance, but SQLite local is fast enough for now)
+  const saveToDb = async (note: Note) => {
+      await db.saveNote(note);
+  };
 
-  const addNote = () => {
+  const addNote = async () => {
     const theme = PAPER_THEMES[Math.floor(Math.random() * (PAPER_THEMES.length - 1))];
     const newNote: Note = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       title: '',
       content: '',
       x: window.innerWidth / 2 - 120 + (Math.random() * 40 - 20),
@@ -85,17 +93,23 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
       rotate: Math.random() * 4 - 2,
     };
     setNotes([...notes, newNote]);
+    await saveToDb(newNote);
   };
 
-  const updateNote = (id: string, updates: Partial<Note>) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+  const updateNote = async (id: string, updates: Partial<Note>) => {
+    setNotes(prev => {
+        const newNotes = prev.map(n => n.id === id ? { ...n, ...updates } : n);
+        const updatedNote = newNotes.find(n => n.id === id);
+        if (updatedNote) saveToDb(updatedNote);
+        return newNotes;
+    });
   };
 
-  const deleteNote = (id: string) => {
+  const deleteNoteState = async (id: string) => {
     setNotes(prev => prev.filter(n => n.id !== id));
+    await db.deleteNote(id);
   };
 
-  // CHỨC NĂNG MỚI: Sắp xếp notes thành lưới (Auto Grid)
   const arrangeNotes = () => {
       const padding = 20;
       const noteWidth = 240;
@@ -105,12 +119,14 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
       const newNotes = notes.map((note, index) => {
           const col = index % cols;
           const row = Math.floor(index / cols);
-          return {
+          const updated = {
               ...note,
               x: 50 + col * (noteWidth + padding),
               y: 100 + row * (noteHeight + padding),
-              rotate: 0 // Reset xoay cho gọn
+              rotate: 0 
           };
+          saveToDb(updated);
+          return updated;
       });
       setNotes(newNotes);
   };
@@ -121,6 +137,7 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
     setActiveMenuId(null);
     dragOffset.current = { x: e.clientX - x, y: e.clientY - y };
     
+    // Bring to front
     setNotes(prev => {
         const note = prev.find(n => n.id === id);
         if (!note) return prev;
@@ -133,11 +150,16 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
     if (draggingId) {
       const newX = e.clientX - dragOffset.current.x;
       const newY = e.clientY - dragOffset.current.y;
-      updateNote(draggingId, { x: newX, y: newY });
+      // Update local state for smoothness, save on MouseUp
+      setNotes(prev => prev.map(n => n.id === draggingId ? {...n, x: newX, y: newY} : n));
     }
   };
 
   const handleMouseUp = () => {
+    if (draggingId) {
+        const note = notes.find(n => n.id === draggingId);
+        if (note) saveToDb(note);
+    }
     setDraggingId(null);
   };
 
@@ -153,7 +175,6 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
       {/* TOOLBAR */}
       {isOpen && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 p-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl animate-in slide-in-from-bottom-4 duration-500 z-50 pointer-events-auto">
-            {/* Nút Sắp xếp */}
             <button 
                 onClick={(e) => { e.stopPropagation(); arrangeNotes(); }}
                 className="pl-3 pr-3 py-2 text-xs font-bold text-zinc-300 hover:text-white uppercase tracking-wider flex items-center gap-2 border-r border-white/10 hover:bg-white/5 rounded-l-full transition-colors"
@@ -189,7 +210,7 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
                     left: note.x, top: note.y, width: note.width, minHeight: note.height,
                     transform: `rotate(${note.rotate}deg)`,
                     cursor: draggingId === note.id ? 'grabbing' : 'default',
-                    transition: draggingId === note.id ? 'none' : 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)' // Hiệu ứng bay khi sắp xếp
+                    transition: draggingId === note.id ? 'none' : 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
                 }}
                 className={`absolute flex flex-col shadow-[5px_5px_15px_rgba(0,0,0,0.15)] hover:shadow-[8px_8px_25px_rgba(0,0,0,0.25)] animate-in zoom-in-95 duration-200 pointer-events-auto ${note.colorBg}`}
                 onMouseDown={(e) => e.stopPropagation()} 
@@ -229,7 +250,7 @@ const StickyNotes = ({ isOpen, onClose }: StickyNotesProps) => {
                             )}
                         </div>
 
-                        <button onClick={() => deleteNote(note.id)} className={`p-1 rounded hover:bg-red-500/10 hover:text-red-600 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        <button onClick={() => deleteNoteState(note.id)} className={`p-1 rounded hover:bg-red-500/10 hover:text-red-600 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
                             <Trash2 size={14} />
                         </button>
                     </div>

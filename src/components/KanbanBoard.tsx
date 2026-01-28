@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2, CheckSquare, Settings, X, Edit2, LayoutList, Kanban as KanbanIcon, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalIcon, Clock, Palette, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Task, Board, Subtask } from '../types';
 import MiniDatePicker from './MiniDatePicker';
-import { DinoLogo } from './DinoIcon'; // Import Dino để làm branding cho cột trống
+import { DinoLogo } from './DinoIcon'; 
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -35,7 +35,7 @@ const COL_COLORS = [
 ];
 
 const KanbanBoard = ({ tasks, boards, onAddTask, onUpdateTask, onDeleteTask, onAddBoard, onDeleteBoard, onUpdateBoard, onClose }: KanbanBoardProps) => {
-  const [activeBoardId, setActiveBoardId] = useState<string>(boards[0].id);
+  const [activeBoardId, setActiveBoardId] = useState<string>(boards.length > 0 ? boards[0].id : 'default');
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   
   const [isAddingTask, setIsAddingTask] = useState<string | null>(null);
@@ -55,9 +55,6 @@ const KanbanBoard = ({ tasks, boards, onAddTask, onUpdateTask, onDeleteTask, onA
 
   const [editingBoardTitle, setEditingBoardTitle] = useState(false);
   const [tempBoardTitle, setTempBoardTitle] = useState("");
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editingTaskTitle, setEditingTaskTitle] = useState("");
-
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
@@ -122,14 +119,67 @@ const KanbanBoard = ({ tasks, boards, onAddTask, onUpdateTask, onDeleteTask, onA
     }
   };
 
-  const saveRenameBoard = () => { if (activeBoard.isDefault) return; if (tempBoardTitle.trim() && onUpdateBoard) onUpdateBoard(activeBoardId, { title: tempBoardTitle }); setEditingBoardTitle(false); };
-  const saveRenameCol = (colId: string) => { if (activeBoard.isDefault) return; if (tempColTitle.trim() && onUpdateBoard) { const newCols = activeBoard.columns.map(c => c.id === colId ? { ...c, title: tempColTitle } : c); onUpdateBoard(activeBoardId, { columns: newCols }); } setEditingColId(null); };
-  const changeColColor = (colId: string, colorClass: string) => { if (activeBoard.isDefault || !onUpdateBoard) return; const newCols = activeBoard.columns.map(c => c.id === colId ? { ...c, color: colorClass } : c); onUpdateBoard(activeBoardId, { columns: newCols }); setOpenColMenuId(null); };
-  const handleAddColumn = () => { if (activeBoard.isDefault || !onUpdateBoard || !newColName.trim()) return; const newId = newColName.toLowerCase().replace(/\s+/g, '-'); const newCols = [...activeBoard.columns, { id: newId, title: newColName, color: 'bg-zinc-500' }]; onUpdateBoard(activeBoardId, { columns: newCols }); setNewColName(""); };
-  const handleDeleteColumn = (colId: string) => { if (activeBoard.isDefault || !onUpdateBoard) return; const newCols = activeBoard.columns.filter(c => c.id !== colId); onUpdateBoard(activeBoardId, { columns: newCols }); };
-  const handleAddSubtask = () => { if (!selectedTask || !newSubtaskTitle.trim()) return; const newSub: Subtask = { id: Date.now().toString(), title: newSubtaskTitle, completed: false }; const updatedSubtasks = [...(selectedTask.subtasks || []), newSub]; onUpdateTask(selectedTask.id, { subtasks: updatedSubtasks }); setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks }); setNewSubtaskTitle(""); };
-  const toggleSubtask = (subId: string) => { if (!selectedTask) return; const updatedSubtasks = (selectedTask.subtasks || []).map(s => s.id === subId ? { ...s, completed: !s.completed } : s); onUpdateTask(selectedTask.id, { subtasks: updatedSubtasks }); setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks }); };
-  const deleteSubtask = (subId: string) => { if (!selectedTask) return; const updatedSubtasks = (selectedTask.subtasks || []).filter(s => s.id !== subId); onUpdateTask(selectedTask.id, { subtasks: updatedSubtasks }); setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks }); };
+  const saveRenameBoard = () => { 
+      if (activeBoard.isDefault) return; 
+      if (tempBoardTitle.trim() && onUpdateBoard) {
+          onUpdateBoard(activeBoardId, { title: tempBoardTitle }); 
+      }
+      setEditingBoardTitle(false); 
+  };
+
+  const saveRenameCol = (colId: string) => { 
+      if (activeBoard.isDefault) return; 
+      if (tempColTitle.trim() && onUpdateBoard) { 
+          const newCols = activeBoard.columns.map(c => c.id === colId ? { ...c, title: tempColTitle } : c); 
+          onUpdateBoard(activeBoardId, { columns: newCols }); 
+      } 
+      setEditingColId(null); 
+  };
+
+  const changeColColor = (colId: string, colorClass: string) => { 
+      if (activeBoard.isDefault || !onUpdateBoard) return; 
+      const newCols = activeBoard.columns.map(c => c.id === colId ? { ...c, color: colorClass } : c); 
+      onUpdateBoard(activeBoardId, { columns: newCols }); 
+      setOpenColMenuId(null); 
+  };
+
+  const handleAddColumn = () => { 
+      if (activeBoard.isDefault || !onUpdateBoard || !newColName.trim()) return; 
+      const newId = newColName.toLowerCase().replace(/\s+/g, '-'); 
+      const newCols = [...activeBoard.columns, { id: newId, title: newColName, color: 'bg-zinc-500' }]; 
+      onUpdateBoard(activeBoardId, { columns: newCols }); 
+      setNewColName(""); 
+  };
+
+  const handleDeleteColumn = (colId: string) => { 
+      if (activeBoard.isDefault || !onUpdateBoard) return; 
+      const newCols = activeBoard.columns.filter(c => c.id !== colId); 
+      onUpdateBoard(activeBoardId, { columns: newCols }); 
+  };
+
+  const handleAddSubtask = () => { 
+      if (!selectedTask || !newSubtaskTitle.trim()) return; 
+      const newSub: Subtask = { id: Date.now().toString(), title: newSubtaskTitle, completed: false }; 
+      const updatedSubtasks = [...(selectedTask.subtasks || []), newSub]; 
+      onUpdateTask(selectedTask.id, { subtasks: updatedSubtasks }); 
+      setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks }); 
+      setNewSubtaskTitle(""); 
+  };
+
+  const toggleSubtask = (subId: string) => { 
+      if (!selectedTask) return; 
+      const updatedSubtasks = (selectedTask.subtasks || []).map(s => s.id === subId ? { ...s, completed: !s.completed } : s); 
+      onUpdateTask(selectedTask.id, { subtasks: updatedSubtasks }); 
+      setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks }); 
+  };
+
+  const deleteSubtask = (subId: string) => { 
+      if (!selectedTask) return; 
+      const updatedSubtasks = (selectedTask.subtasks || []).filter(s => s.id !== subId); 
+      onUpdateTask(selectedTask.id, { subtasks: updatedSubtasks }); 
+      setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks }); 
+  };
+
   const calculateProgress = (t: Task) => { if (!t.subtasks || t.subtasks.length === 0) return 0; const completed = t.subtasks.filter(s => s.completed).length; return Math.round((completed / t.subtasks.length) * 100); };
   
   const formatDateTime = (iso: string) => { 

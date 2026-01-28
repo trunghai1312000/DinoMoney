@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Timer, CheckSquare, StickyNote, Image as ImageIcon, Volume2, Calendar as CalIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Timer, CheckSquare, StickyNote, Image as ImageIcon, Volume2, Calendar as CalIcon, Loader2, AlertCircle } from 'lucide-react';
 import { DinoLogo } from './components/DinoIcon';
 import SoundMixer from './components/SoundMixer';
 import WallpaperSelector from './components/WallpaperSelector';
@@ -10,40 +10,128 @@ import StickyNotes from './components/StickyNotes';
 import AuthOverlay from './components/AuthOverlay'; 
 import TopBar from './components/TopBar'; 
 import { Task, Board, UserProfile } from './types';
+import * as db from './services/db'; 
 
-const INITIAL_BOARDS: Board[] = [
-  {
-    id: 'default',
-    title: 'Main Focus',
-    isDefault: true,
-    columns: [
-      { id: 'todo', title: 'To Do', color: 'bg-zinc-500' },
-      { id: 'inprogress', title: 'Deep Work', color: 'bg-blue-500' },
-      { id: 'waiting', title: 'Blocked', color: 'bg-orange-500' },
-      { id: 'done', title: 'Done', color: 'bg-green-500' },
-    ]
-  }
-];
-
-const INITIAL_TASKS: Task[] = [
-  { id: '1', title: 'Complete UI Design', status: 'inprogress', boardId: 'default', dueDate: new Date().toISOString().split('T')[0], color: '#3b82f6', createdAt: new Date().toISOString() },
-];
+const DEFAULT_BOARD: Board = {
+  id: 'default',
+  title: 'Main Focus',
+  isDefault: true,
+  columns: [
+    { id: 'todo', title: 'To Do', color: 'bg-zinc-500' },
+    { id: 'inprogress', title: 'Deep Work', color: 'bg-blue-500' },
+    { id: 'waiting', title: 'Blocked', color: 'bg-orange-500' },
+    { id: 'done', title: 'Done', color: 'bg-green-500' },
+  ]
+};
 
 function App() {
   const [panels, setPanels] = useState({ wallpaper: false, mixer: false, tasks: false, calendar: false, notes: false });
-  
   const [bgState, setBgState] = useState<{ url: string; type: 'image' | 'video' }>({
       url: "https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?q=80&w=2000&auto=format&fit=crop",
       type: 'image'
   });
 
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
-  const [boards, setBoards] = useState<Board[]>(INITIAL_BOARDS);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [boards, setBoards] = useState<Board[]>([DEFAULT_BOARD]);
   const [user, setUser] = useState<UserProfile | null>(null);
+  
   const [isTimerMinimized, setIsTimerMinimized] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [dbError, setDbError] = useState<string | null>(null);
+
+  // --- INIT DATABASE & LOAD DATA ---
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        const success = await db.initDB();
+        if (!success) {
+            setDbError("Không thể kết nối Database. Vui lòng kiểm tra quyền truy cập.");
+            return;
+        }
+        
+        const loadedUser = await db.getUser();
+        if (loadedUser) {
+            setUser(loadedUser);
+            // Load Tasks & Boards
+            const loadedBoards = await db.getBoards();
+            if (loadedBoards.length > 0) setBoards(loadedBoards);
+            else {
+                await db.saveBoard(DEFAULT_BOARD);
+                setBoards([DEFAULT_BOARD]);
+            }
+
+            const loadedTasks = await db.getTasks();
+            setTasks(loadedTasks);
+        }
+      } catch (e: any) {
+          console.error("Init Error:", e);
+          setDbError(e.message || "Lỗi khởi tạo không xác định");
+      } finally {
+          setIsLoading(false); // QUAN TRỌNG: Luôn tắt loading
+      }
+    };
+    initApp();
+  }, []);
+
+  // --- HANDLERS (Connect to DB) ---
+  const handleUpdateUser = async (updatedUser: UserProfile) => {
+      setUser(updatedUser);
+      await db.saveUser(updatedUser);
+  };
+
+  const handleLogin = async (u: UserProfile) => {
+      setUser(u);
+      await db.saveUser(u);
+      const currentBoards = await db.getBoards();
+      if(currentBoards.length === 0) {
+          await db.saveBoard(DEFAULT_BOARD);
+          setBoards([DEFAULT_BOARD]);
+      }
+  };
 
   const handleLock = () => setUser(null);
+
+  const handleAddTask = async (newTask: Omit<Task, 'id'>) => {
+      const task: Task = { ...newTask, id: crypto.randomUUID() };
+      setTasks(prev => [...prev, task]);
+      await db.saveTask(task);
+  };
+
+  const handleUpdateTask = async (id: string, updates: Partial<Task>) => {
+      setTasks(prev => {
+          const updatedTasks = prev.map(t => t.id === id ? { ...t, ...updates } : t);
+          const task = updatedTasks.find(t => t.id === id);
+          if (task) db.saveTask(task); // Save to DB
+          return updatedTasks;
+      });
+  };
+
+  const handleDeleteTask = async (id: string) => {
+      setTasks(prev => prev.filter(t => t.id !== id));
+      await db.deleteTask(id);
+  };
+
+  const handleAddBoard = async (title: string) => {
+      const newBoard: Board = { id: crypto.randomUUID(), title, isDefault: false, columns: [] };
+      setBoards(prev => [...prev, newBoard]);
+      await db.saveBoard(newBoard);
+  };
+
+  const handleUpdateBoard = async (boardId: string, updates: Partial<Board>) => {
+      setBoards(prev => {
+        const updatedBoards = prev.map(b => b.id === boardId ? { ...b, ...updates } : b);
+        const board = updatedBoards.find(b => b.id === boardId);
+        if(board) db.saveBoard(board);
+        return updatedBoards;
+      });
+  };
+
+  const handleDeleteBoard = async (id: string) => {
+      setBoards(prev => prev.filter(b => b.id !== id));
+      setTasks(prev => prev.filter(t => t.boardId !== id));
+      await db.deleteBoard(id);
+  };
 
   const togglePanel = (key: keyof typeof panels) => {
     setPanels(prev => {
@@ -68,14 +156,6 @@ function App() {
       if (!minimized) setPanels(prev => ({ ...prev, tasks: false, calendar: false }));
   };
 
-  const handleAddTask = (newTask: Omit<Task, 'id'>) => setTasks([...tasks, { ...newTask, id: Date.now().toString() }]);
-  const handleUpdateTask = (id: string, updates: Partial<Task>) => setTasks(tasks.map(t => t.id === id ? { ...t, ...updates } : t));
-  const handleDeleteTask = (id: string) => setTasks(tasks.filter(t => t.id !== id));
-  
-  const handleAddBoard = (title: string) => { setBoards([...boards, { id: Date.now().toString(), title, isDefault: false, columns: [] }]); };
-  const handleUpdateBoard = (boardId: string, updates: Partial<Board>) => setBoards(boards.map(b => b.id === boardId ? { ...b, ...updates } : b));
-  const handleDeleteBoard = (id: string) => { setBoards(boards.filter(b => b.id !== id)); setTasks(tasks.filter(t => t.boardId !== id)); };
-
   const navItems = [
     { id: 'wallpaper', icon: ImageIcon, label: 'Backgrounds' },
     { id: 'mixer', icon: Volume2, label: 'Soundscapes' },
@@ -84,9 +164,31 @@ function App() {
     { id: 'notes', icon: StickyNote, label: 'Notes' },
   ];
 
+  // Loading Screen
+  if (isLoading) {
+      return (
+          <div className="w-screen h-screen bg-[#0f0f11] flex flex-col items-center justify-center text-green-500 gap-4">
+              <Loader2 size={40} className="animate-spin" />
+              <p className="text-xs font-mono text-zinc-500 animate-pulse">Initializing Local Database...</p>
+          </div>
+      );
+  }
+
+  // Error Screen
+  if (dbError) {
+      return (
+          <div className="w-screen h-screen bg-[#0f0f11] flex flex-col items-center justify-center text-red-500 gap-4 p-8 text-center">
+              <AlertCircle size={48} />
+              <h2 className="text-xl font-bold">Lỗi Hệ Thống</h2>
+              <p className="text-zinc-400 text-sm max-w-md">{dbError}</p>
+              <button onClick={() => window.location.reload()} className="px-4 py-2 bg-white/10 rounded hover:bg-white/20 text-white text-sm">Thử lại</button>
+          </div>
+      );
+  }
+
   return (
     <div className="relative w-screen h-screen overflow-hidden font-sans select-none text-zinc-100 bg-black">
-      {!user && <AuthOverlay onLogin={setUser} />}
+      {!user && <AuthOverlay onLogin={handleLogin} />}
 
       {/* BACKGROUND LAYER */}
       <div className="absolute inset-0 z-0 overflow-hidden">
@@ -109,7 +211,7 @@ function App() {
       <TopBar 
         user={user} 
         tasks={tasks} 
-        onUpdateUser={setUser} 
+        onUpdateUser={handleUpdateUser} 
         onLock={handleLock} 
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
