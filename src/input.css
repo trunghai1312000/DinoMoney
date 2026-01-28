@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #09090b; /* Đen sâu hơn */
+  color: #e4e4e7;
+  user-select: none;
+  cursor: default;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Scrollbar ẩn */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+/* Hiệu ứng kính mờ tinh tế hơn (ít viền sáng) */
+.glass-subtle {
+  @apply bg-black/40 backdrop-blur-xl border border-white/5 shadow-2xl;
+}
+
+/* Animation xuất hiện nhẹ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
