@@ -6,9 +6,11 @@ const DB_NAME = 'sqlite:dinofocus.db';
 // --- KHỞI TẠO DB & BẢNG ---
 export const initDB = async () => {
   try {
+    console.log("Connecting to DB:", DB_NAME);
     const db = await Database.load(DB_NAME);
+    console.log("DB Connected. Creating tables...");
 
-    // 1. Bảng USER (Chỉ lưu 1 dòng duy nhất)
+    // 1. Bảng USER
     await db.execute(`
       CREATE TABLE IF NOT EXISTS user_profile (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -17,7 +19,7 @@ export const initDB = async () => {
         avatar_url TEXT,
         password TEXT,
         joined_at TEXT,
-        settings TEXT -- JSON string
+        settings TEXT
       )
     `);
 
@@ -27,7 +29,7 @@ export const initDB = async () => {
         id TEXT PRIMARY KEY,
         title TEXT,
         is_default INTEGER,
-        columns TEXT -- JSON string
+        columns TEXT
       )
     `);
 
@@ -43,7 +45,7 @@ export const initDB = async () => {
         description TEXT,
         color TEXT,
         created_at TEXT,
-        subtasks TEXT -- JSON string
+        subtasks TEXT
       )
     `);
 
@@ -64,7 +66,7 @@ export const initDB = async () => {
     console.log("Database initialized successfully!");
     return true;
   } catch (error) {
-    console.error("Failed to init DB:", error);
+    console.error("CRITICAL: Failed to init DB:", error);
     return false;
   }
 };
@@ -99,7 +101,7 @@ export const saveUser = async (user: UserProfile) => {
             `INSERT OR REPLACE INTO user_profile (id, username, bio, avatar_url, password, joined_at, settings) VALUES (1, $1, $2, $3, $4, $5, $6)`,
             [user.username, user.bio, user.avatarUrl, user.password, user.joinedAt, JSON.stringify(user.settings || {})]
         );
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error("Error saving user:", e) }
 };
 
 // --- BOARD API ---
@@ -114,7 +116,7 @@ export const getBoards = async (): Promise<Board[]> => {
             isDefault: !!b.is_default,
             columns: JSON.parse(b.columns)
         }));
-    } catch (e) { console.error(e); return []; }
+    } catch (e) { console.error("Error getting boards:", e); return []; }
 };
 
 export const saveBoard = async (board: Board) => {
@@ -148,7 +150,7 @@ export const getTasks = async (): Promise<Task[]> => {
             createdAt: t.created_at,
             subtasks: t.subtasks ? JSON.parse(t.subtasks) : []
         }));
-    } catch (e) { console.error(e); return []; }
+    } catch (e) { console.error("Error getting tasks:", e); return []; }
 };
 
 export const saveTask = async (task: Task) => {
