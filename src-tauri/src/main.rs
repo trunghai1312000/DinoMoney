@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    dinofocus_lib::run()
+    dino_focus_lib::run()
 }
