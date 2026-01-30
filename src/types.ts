@@ -1,3 +1,25 @@
+export interface UserSettings {
+  focusDuration?: number; // Cài đặt mặc định (phút)
+  weeklyGoal?: number;    // Mục tiêu giờ/tuần
+  highPerformance?: boolean;
+  sound?: boolean;
+  notifications?: boolean;
+  wallpaper?: {
+      url: string;
+      type: 'image' | 'video';
+  };
+}
+
+export interface UserProfile {
+  id?: number;
+  username: string;
+  bio?: string;
+  avatarUrl?: string;
+  password?: string;
+  joinedAt: string;
+  settings?: UserSettings;
+}
+
 export interface Subtask {
   id: string;
   title: string;
@@ -7,15 +29,14 @@ export interface Subtask {
 export interface Task {
   id: string;
   title: string;
-  status: string; // column id
+  status: string; // 'todo' | 'inprogress' | 'waiting' | 'done'
   boardId: string;
-  priority?: 'low' | 'medium' | 'high';
   dueDate?: string;
   startDate?: string;
   description?: string;
   color?: string;
-  createdAt: string;
   subtasks?: Subtask[];
+  createdAt: string;
 }
 
 export interface Column {
@@ -31,20 +52,26 @@ export interface Board {
   columns: Column[];
 }
 
-export interface UserSettings {
-  focusDuration: number; // Phút (Mặc định 25)
-  weeklyGoal: number; // Giờ (Mặc định 40)
-  highPerformance: boolean; // Tắt blur/animation
-  sound: boolean;
-  notifications: boolean;
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  colorBg: string;
+  colorBorder: string;
+  textColor: string;
+  isBold: boolean;
+  isItalic: boolean;
+  isUnderline: boolean;
+  rotate: number;
 }
 
-export interface UserProfile {
-  username: string;
-  bio?: string;
-  avatarUrl: string;
-  password?: string;
-  joinedAt: string;
-  isSetup: boolean;
-  settings: UserSettings; // Thêm setting vào profile
+// MỚI: Interface cho phiên làm việc tập trung
+export interface FocusSession {
+  id: string;
+  duration: number; // Số phút
+  completedAt: string; // ISO Date
 }

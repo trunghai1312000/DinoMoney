@@ -27,11 +27,11 @@ const AppInfo = ({ onClose }: AppInfoProps) => {
 
             <div className="px-6 pb-6 text-center -mt-2">
                 <h2 className="text-xl font-bold text-white tracking-wide">DinoFocus</h2>
-                <p className="text-xs text-zinc-500 font-mono mt-1">v1.0.0 Release</p>
+                <p className="text-xs text-zinc-500 font-mono mt-1">v1.0.0 Beta Release</p>
 
                 <div className="my-4 text-sm text-zinc-300 leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5">
                     <p>
-                        Nơi để tập trung làm việc. Thời gian là của bạn, thế giới… ai rảnh thì lo.
+                        Nơi để tập trung làm việc. Thời gian là của bạn, thế giới… ai rảnh thì lo. Vì 1 tương lai 20m+
                     </p>
                 </div>
 

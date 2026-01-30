@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Image as ImageIcon, Film, Plus, Trash2, Check, X, Play } from 'lucide-react';
+import * as db from '../services/db';
 
 interface WallpaperSelectorProps {
   currentBg: string;
@@ -7,23 +8,34 @@ interface WallpaperSelectorProps {
   onClose: () => void;
 }
 
+// Kiểu dữ liệu nội bộ cho Component này (để quản lý ID khi xóa)
+interface WallpaperItem {
+    id: string;
+    url: string;
+}
+
 const WallpaperSelector = ({ currentBg, onSelect, onClose }: WallpaperSelectorProps) => {
   const [activeTab, setActiveTab] = useState<'static' | 'live'>('static');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dữ liệu mẫu ban đầu
-  const [staticWallpapers, setStaticWallpapers] = useState([
-    "https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?q=80&w=2000&auto=format&fit=crop", 
-    "https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=2000&auto=format&fit=crop", 
-    "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=2000&auto=format&fit=crop", 
-    "https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?q=80&w=2000&auto=format&fit=crop",
-  ]);
+  // Thay vì lưu mảng string URL, ta lưu mảng Object {id, url} để dễ xóa trong DB
+  const [staticWallpapers, setStaticWallpapers] = useState<WallpaperItem[]>([]);
+  const [liveWallpapers, setLiveWallpapers] = useState<WallpaperItem[]>([]);
 
-  const [liveWallpapers, setLiveWallpapers] = useState([
-    "https://assets.mixkit.co/videos/preview/mixkit-rain-falling-on-the-window-glass-1550-large.mp4",
-    "https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4",
-    "https://assets.mixkit.co/videos/preview/mixkit-traffic-lights-in-a-city-street-at-night-12258-large.mp4",
-  ]);
+  // Load Data từ DB
+  useEffect(() => {
+      const fetchWallpapers = async () => {
+          const allWp = await db.getWallpapers();
+          
+          setStaticWallpapers(
+              allWp.filter(w => w.type === 'image').map(w => ({ id: w.id, url: w.url }))
+          );
+          setLiveWallpapers(
+              allWp.filter(w => w.type === 'video').map(w => ({ id: w.id, url: w.url }))
+          );
+      };
+      fetchWallpapers();
+  }, []);
 
   const handleAddClick = () => {
     fileInputRef.current?.click();
@@ -33,31 +45,60 @@ const WallpaperSelector = ({ currentBg, onSelect, onClose }: WallpaperSelectorPr
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Tạo URL cục bộ cho file vừa chọn
-    const localUrl = URL.createObjectURL(file);
+    // Đọc file thành Base64 để lưu vào DB (Persistence)
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const base64Url = e.target?.result as string;
+        const newId = crypto.randomUUID();
+        const type = activeTab === 'static' ? 'image' : 'video';
+
+        // 1. Lưu vào DB
+        await db.addWallpaper({
+            id: newId,
+            type: type,
+            url: base64Url
+        });
+
+        // 2. Cập nhật UI ngay lập tức
+        const newItem = { id: newId, url: base64Url };
+        if (activeTab === 'static') {
+            setStaticWallpapers([newItem, ...staticWallpapers]);
+            onSelect(base64Url, 'image');
+        } else {
+            setLiveWallpapers([newItem, ...liveWallpapers]);
+            onSelect(base64Url, 'video');
+        }
+    };
 
     if (activeTab === 'static') {
-        setStaticWallpapers([localUrl, ...staticWallpapers]);
-        onSelect(localUrl, 'image'); // Tự động chọn luôn
+        reader.readAsDataURL(file);
     } else {
-        setLiveWallpapers([localUrl, ...liveWallpapers]);
-        onSelect(localUrl, 'video'); // Tự động chọn luôn
+        // Với Video, base64 có thể rất nặng, nhưng với SQLite local thì vẫn ổn cho các clip ngắn.
+        // Trong thực tế production app lớn, người ta sẽ lưu file vào FileSystem của OS (fs write) và lưu path vào DB.
+        // Nhưng ở đây để đơn giản và đồng bộ logic Base64 như yêu cầu trước, ta dùng Base64.
+        reader.readAsDataURL(file);
     }
     
-    // Reset input để chọn lại file giống nhau nếu muốn
     event.target.value = '';
   };
 
-  const handleDelete = (e: React.MouseEvent, url: string) => {
+  const handleDelete = async (e: React.MouseEvent, item: WallpaperItem) => {
     e.stopPropagation();
-    if (confirm("Xóa hình nền này khỏi danh sách?")) {
-        if (activeTab === 'static') setStaticWallpapers(staticWallpapers.filter(w => w !== url));
-        else setLiveWallpapers(liveWallpapers.filter(w => w !== url));
-        
-        // Revoke URL nếu là blob (để giải phóng bộ nhớ - optional nhưng tốt)
-        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    if (confirm("Xóa hình nền này khỏi thư viện?")) {
+        // 1. Xóa khỏi DB
+        await db.deleteWallpaper(item.id);
+
+        // 2. Cập nhật UI
+        if (activeTab === 'static') {
+            setStaticWallpapers(prev => prev.filter(w => w.id !== item.id));
+        } else {
+            setLiveWallpapers(prev => prev.filter(w => w.id !== item.id));
+        }
     }
   };
+
+  // List Item đang hiển thị dựa trên Tab
+  const displayItems = activeTab === 'static' ? staticWallpapers : liveWallpapers;
 
   return (
     <div className="flex flex-col h-full text-white font-sans">
@@ -117,46 +158,52 @@ const WallpaperSelector = ({ currentBg, onSelect, onClose }: WallpaperSelectorPr
             </button>
 
             {/* List Wallpapers */}
-            {(activeTab === 'static' ? staticWallpapers : liveWallpapers).map((url, idx) => (
-                <div 
-                    key={idx}
-                    // QUAN TRỌNG: Truyền đúng type
-                    onClick={() => onSelect(url, activeTab === 'static' ? 'image' : 'video')}
-                    className={`relative group aspect-video rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${currentBg === url ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'border-transparent hover:border-white/30'}`}
-                >
-                    {activeTab === 'static' ? (
-                        <img src={url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
-                    ) : (
-                        <>
-                            {/* Preview video nhỏ */}
-                            <video src={url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" muted loop />
-                            <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 backdrop-blur rounded flex items-center gap-1">
-                                <Play size={8} className="text-white fill-white" />
-                                <span className="text-[8px] font-bold text-white uppercase">Live</span>
-                            </div>
-                        </>
-                    )}
-
-                    {/* Delete Button (Hover) */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                            onClick={(e) => handleDelete(e, url)}
-                            className="p-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-md shadow-lg"
-                        >
-                            <Trash2 size={12} />
-                        </button>
-                    </div>
-
-                    {/* Active Checkmark */}
-                    {currentBg === url && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-                            <div className="bg-purple-500 p-1.5 rounded-full shadow-lg animate-in zoom-in duration-200">
-                                <Check size={16} className="text-white" strokeWidth={3} />
-                            </div>
-                        </div>
-                    )}
+            {displayItems.length === 0 ? (
+                <div className="col-span-2 text-center py-8 text-zinc-600 text-xs">
+                    Đang tải thư viện...
                 </div>
-            ))}
+            ) : (
+                displayItems.map((item) => (
+                    <div 
+                        key={item.id}
+                        // QUAN TRỌNG: Truyền đúng type
+                        onClick={() => onSelect(item.url, activeTab === 'static' ? 'image' : 'video')}
+                        className={`relative group aspect-video rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${currentBg === item.url ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'border-transparent hover:border-white/30'}`}
+                    >
+                        {activeTab === 'static' ? (
+                            <img src={item.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                        ) : (
+                            <>
+                                {/* Preview video nhỏ */}
+                                <video src={item.url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" muted loop />
+                                <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 backdrop-blur rounded flex items-center gap-1">
+                                    <Play size={8} className="text-white fill-white" />
+                                    <span className="text-[8px] font-bold text-white uppercase">Live</span>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Delete Button (Hover) */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                                onClick={(e) => handleDelete(e, item)}
+                                className="p-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-md shadow-lg"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        </div>
+
+                        {/* Active Checkmark */}
+                        {currentBg === item.url && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+                                <div className="bg-purple-500 p-1.5 rounded-full shadow-lg animate-in zoom-in duration-200">
+                                    <Check size={16} className="text-white" strokeWidth={3} />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))
+            )}
         </div>
       </div>
     </div>

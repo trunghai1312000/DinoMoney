@@ -26,6 +26,8 @@ const DEFAULT_BOARD: Board = {
 
 function App() {
   const [panels, setPanels] = useState({ wallpaper: false, mixer: false, tasks: false, calendar: false, notes: false });
+  
+  // Mặc định hình nền
   const [bgState, setBgState] = useState<{ url: string; type: 'image' | 'video' }>({
       url: "https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?q=80&w=2000&auto=format&fit=crop",
       type: 'image'
@@ -45,14 +47,17 @@ function App() {
     const initApp = async () => {
       try {
         const success = await db.initDB();
-        if (!success) {
-            setDbError("Không thể kết nối Database. Vui lòng kiểm tra quyền truy cập.");
-            return;
-        }
+        // Dù initDB trả về false hay true, chúng ta vẫn cố gắng load data (vì có fallback)
         
         const loadedUser = await db.getUser();
         if (loadedUser) {
             setUser(loadedUser);
+            
+            // LOAD SETTINGS (WALLPAPER)
+            if (loadedUser.settings?.wallpaper) {
+                setBgState(loadedUser.settings.wallpaper);
+            }
+
             // Load Tasks & Boards
             const loadedBoards = await db.getBoards();
             if (loadedBoards.length > 0) setBoards(loadedBoards);
@@ -66,23 +71,60 @@ function App() {
         }
       } catch (e: any) {
           console.error("Init Error:", e);
-          setDbError(e.message || "Lỗi khởi tạo không xác định");
+          setDbError("Có lỗi khi tải dữ liệu. App sẽ thử dùng bộ nhớ tạm.");
       } finally {
-          setIsLoading(false); // QUAN TRỌNG: Luôn tắt loading
+          setIsLoading(false); 
       }
     };
     initApp();
   }, []);
 
-  // --- HANDLERS (Connect to DB) ---
+  // --- HANDLERS ---
+
+  // Khi đổi hình nền -> Lưu ngay vào DB
+  const handleWallpaperChange = async (url: string, type: 'image' | 'video') => {
+      const newBg = { url, type };
+      setBgState(newBg);
+      
+      if (user) {
+          const updatedUser = { 
+              ...user, 
+              settings: { ...user.settings, wallpaper: newBg } 
+          };
+          setUser(updatedUser);
+          await db.saveUser(updatedUser);
+      }
+  };
+
   const handleUpdateUser = async (updatedUser: UserProfile) => {
-      setUser(updatedUser);
-      await db.saveUser(updatedUser);
+      // FIX BUG: Không ghi đè settings cũ lên settings mới
+      // updatedUser từ UserProfile đã chứa settings mới nhất.
+      // Merge cẩn thận để đảm bảo không mất settings wallpaper
+      
+      const finalUser = { 
+          ...updatedUser, 
+          settings: {
+              ...(user?.settings || {}), // Lấy settings hiện tại (VD: wallpaper)
+              ...(updatedUser.settings || {}) // Ghi đè các settings mới từ Profile (VD: focusTime, goal)
+          }
+      };
+      
+      setUser(finalUser);
+      await db.saveUser(finalUser);
   };
 
   const handleLogin = async (u: UserProfile) => {
-      setUser(u);
-      await db.saveUser(u);
+      // Khi login, ưu tiên lấy settings từ DB nếu user đã tồn tại
+      const existingUser = await db.getUser();
+      const finalUser = existingUser ? existingUser : u;
+      
+      setUser(finalUser);
+      await db.saveUser(finalUser);
+
+      if (finalUser.settings?.wallpaper) {
+          setBgState(finalUser.settings.wallpaper);
+      }
+
       const currentBoards = await db.getBoards();
       if(currentBoards.length === 0) {
           await db.saveBoard(DEFAULT_BOARD);
@@ -102,7 +144,7 @@ function App() {
       setTasks(prev => {
           const updatedTasks = prev.map(t => t.id === id ? { ...t, ...updates } : t);
           const task = updatedTasks.find(t => t.id === id);
-          if (task) db.saveTask(task); // Save to DB
+          if (task) db.saveTask(task); 
           return updatedTasks;
       });
   };
@@ -143,7 +185,7 @@ function App() {
              if (key === 'tasks') newState.calendar = false;
              if (key === 'calendar') newState.tasks = false;
              if (key === 'wallpaper' || key === 'mixer') { newState.tasks = false; newState.calendar = false; }
-             newState.notes = false;
+             // Notes độc lập, có thể mở đè lên
              if (key === 'tasks' || key === 'calendar') { newState.wallpaper = false; newState.mixer = false; }
         }
       }
@@ -164,24 +206,11 @@ function App() {
     { id: 'notes', icon: StickyNote, label: 'Notes' },
   ];
 
-  // Loading Screen
   if (isLoading) {
       return (
           <div className="w-screen h-screen bg-[#0f0f11] flex flex-col items-center justify-center text-green-500 gap-4">
               <Loader2 size={40} className="animate-spin" />
-              <p className="text-xs font-mono text-zinc-500 animate-pulse">Initializing Local Database...</p>
-          </div>
-      );
-  }
-
-  // Error Screen
-  if (dbError) {
-      return (
-          <div className="w-screen h-screen bg-[#0f0f11] flex flex-col items-center justify-center text-red-500 gap-4 p-8 text-center">
-              <AlertCircle size={48} />
-              <h2 className="text-xl font-bold">Lỗi Hệ Thống</h2>
-              <p className="text-zinc-400 text-sm max-w-md">{dbError}</p>
-              <button onClick={() => window.location.reload()} className="px-4 py-2 bg-white/10 rounded hover:bg-white/20 text-white text-sm">Thử lại</button>
+              <p className="text-xs font-mono text-zinc-500 animate-pulse">Initializing System...</p>
           </div>
       );
   }
@@ -205,7 +234,7 @@ function App() {
                 className="absolute inset-0 w-full h-full object-cover opacity-70 transition-opacity duration-700"
               />
           )}
-          <div className="absolute inset-0 bg-black/50"></div>
+          <div className="absolute inset-0 bg-black/10"></div>
       </div>
 
       <TopBar 
@@ -218,7 +247,7 @@ function App() {
       />
 
       <nav 
-        className={`absolute left-6 top-1/2 -translate-y-1/2 w-[64px] py-6 rounded-2xl z-50 flex flex-col items-center gap-6 bg-black/20 backdrop-blur-2xl border border-white/5 shadow-2xl shadow-black/50 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
+        className={`absolute left-6 top-1/2 -translate-y-1/2 w-[64px] py-6 rounded-2xl z-50 flex flex-col items-center gap-6 bg-black/30 border border-white/5 shadow-2xl shadow-black/50 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
             ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-[200%] opacity-0 pointer-events-none'}
         `}
       >
@@ -254,6 +283,7 @@ function App() {
              </div>
          </div>
 
+         {/* STICKY NOTES: Đã kết nối DB */}
          <StickyNotes isOpen={panels.notes} onClose={() => togglePanel('notes')} />
 
          {panels.wallpaper && (
@@ -261,7 +291,7 @@ function App() {
                 <div className="w-[340px] h-[550px] rounded-[2rem] overflow-hidden border border-white/10 bg-black/30 backdrop-blur-2xl shadow-2xl shadow-black/80 ring-1 ring-white/5">
                    <WallpaperSelector 
                         currentBg={bgState.url} 
-                        onSelect={(url, type) => setBgState({ url, type })} 
+                        onSelect={(url, type) => handleWallpaperChange(url, type || 'image')} 
                         onClose={() => togglePanel('wallpaper')} 
                    />
                 </div>

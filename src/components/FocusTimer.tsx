@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, ChevronUp, ChevronDown, Timer, Watch, Bell, Volume2 } from 'lucide-react';
+import * as db from '../services/db';
 
 interface FocusTimerProps {
   isMinimized: boolean;
@@ -9,12 +10,49 @@ interface FocusTimerProps {
 const FocusTimer = ({ isMinimized, onToggleMinimize }: FocusTimerProps) => {
   const [mode, setMode] = useState<'timer' | 'stopwatch'>('timer');
   const [isActive, setIsActive] = useState(false);
+  
+  // Logic: Lưu duration ban đầu để ghi vào DB khi hoàn thành
+  const [initialDuration, setInitialDuration] = useState(25); 
   const [timeLeft, setTimeLeft] = useState(25 * 60); 
+
   const [stopwatchTime, setStopwatchTime] = useState(0);
-  const [isTimeUp, setIsTimeUp] = useState(false); // Trạng thái hết giờ
+  const [isTimeUp, setIsTimeUp] = useState(false);
 
   // Sound ref
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // --- NEW: Load User Settings for Timer Duration ---
+  useEffect(() => {
+    const syncSettings = async () => {
+        try {
+            const user = await db.getUser();
+            if (user && user.settings?.focusDuration) {
+                const newDuration = user.settings.focusDuration;
+                
+                // FIX: Sử dụng functional update để so sánh chính xác với state trước đó
+                setInitialDuration(prev => {
+                    // Chỉ cập nhật nếu settings trong DB KHÁC với settings hiện tại
+                    if (prev !== newDuration) {
+                        // Nếu Timer đang KHÔNG chạy (Ready hoặc Paused) và ở chế độ Timer
+                        // Thì cập nhật ngay thời gian hiển thị cho user thấy
+                        if (!isActive && mode === 'timer') {
+                            setTimeLeft(newDuration * 60);
+                        }
+                        return newDuration;
+                    }
+                    return prev;
+                });
+            }
+        } catch (e) {
+            console.error("Timer sync error:", e);
+        }
+    };
+    syncSettings();
+    
+    // Poll nhanh hơn (2s) để UX mượt hơn
+    const syncInterval = setInterval(syncSettings, 2000);
+    return () => clearInterval(syncInterval);
+  }, [isActive, mode]); // Re-run if active state changes
 
   // Request Notification permission on mount
   useEffect(() => {
@@ -52,6 +90,12 @@ const FocusTimer = ({ isMinimized, onToggleMinimize }: FocusTimerProps) => {
       setIsActive(false);
       setIsTimeUp(true);
       
+      // >>> LOGIC MỚI: LƯU VÀO DB <<<
+      // Chỉ lưu nếu đang ở chế độ Timer
+      if (mode === 'timer') {
+          db.saveFocusSession(initialDuration); 
+      }
+
       // Play Sound
       if (audioRef.current) {
           audioRef.current.play().catch(e => console.log("Audio play failed:", e));
@@ -67,7 +111,11 @@ const FocusTimer = ({ isMinimized, onToggleMinimize }: FocusTimerProps) => {
   };
 
   const toggleTimer = () => {
-      if (isTimeUp) setIsTimeUp(false); // Reset trạng thái time up khi bấm lại
+      if (isTimeUp) {
+          setIsTimeUp(false);
+          // Reset về thời gian ban đầu khi bấm lại
+          if (mode === 'timer') setTimeLeft(initialDuration * 60); 
+      }
       setIsActive(!isActive);
   };
 
@@ -78,7 +126,8 @@ const FocusTimer = ({ isMinimized, onToggleMinimize }: FocusTimerProps) => {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
     }
-    mode === 'timer' ? setTimeLeft(25 * 60) : setStopwatchTime(0);
+    // Khi reset, đảm bảo lấy lại đúng initialDuration (đã được sync từ settings)
+    mode === 'timer' ? setTimeLeft(initialDuration * 60) : setStopwatchTime(0);
   };
 
   const formatTime = (seconds: number) => {
@@ -106,7 +155,7 @@ const FocusTimer = ({ isMinimized, onToggleMinimize }: FocusTimerProps) => {
         </button>
 
         {/* Mode Switcher */}
-        <div className="flex p-1 rounded-xl bg-black/10 hover:bg-black/20 transition-colors mb-10 border border-white/5">
+        <div className="flex p-1 rounded-xl bg-black/20 hover:bg-black/20 transition-colors mb-10 border border-white/10">
           <button onClick={() => { setMode('timer'); setIsActive(false); setIsTimeUp(false); }}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${mode === 'timer' ? 'bg-green-500 text-black shadow-lg shadow-green-500/20' : 'text-zinc-500 hover:text-zinc-300'}`}>Timer</button>
           <button onClick={() => { setMode('stopwatch'); setIsActive(false); setIsTimeUp(false); }}
@@ -132,7 +181,7 @@ const FocusTimer = ({ isMinimized, onToggleMinimize }: FocusTimerProps) => {
              {isActive ? <Pause size={32} fill="currentColor" /> : (isTimeUp ? <Bell size={32} /> : <Play size={32} fill="currentColor" className="ml-1" />)}
           </button>
           
-          <button onClick={resetTimer} className="w-18 h-18 p-5 rounded-2xl flex items-center justify-center bg-white/5 text-zinc-500 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95 backdrop-blur-md border border-white/5">
+          <button onClick={resetTimer} className="w-18 h-18 p-5 rounded-2xl flex items-center justify-center bg-white/10 text-zinc-500 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95 backdrop-blur-md border border-white/5">
              <RotateCcw size={28} />
           </button>
         </div>

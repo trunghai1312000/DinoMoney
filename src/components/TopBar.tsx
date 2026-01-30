@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, Clock as ClockIcon, Lock, PanelLeft, Info } from 'lucide-react';
+import { BarChart3, Clock as ClockIcon, Lock, PanelLeft, Info, Power, AlertTriangle } from 'lucide-react';
 import { UserProfile, Task } from '../types';
 import ProductivityReport from './ProductivityReport';
 import UserProfileModal from './UserProfile';
-import AppInfo from './AppInfo'; // Import mới
+import AppInfo from './AppInfo'; 
+import { DinoLogo } from './DinoIcon';
 
 interface TopBarProps {
   user: UserProfile | null;
@@ -16,8 +17,10 @@ interface TopBarProps {
 
 const TopBar = ({ user, tasks, onUpdateUser, onLock, isSidebarOpen, onToggleSidebar }: TopBarProps) => {
   const [time, setTime] = useState(new Date());
-  // Thêm state 'info'
   const [activePopup, setActivePopup] = useState<'none' | 'report' | 'profile' | 'info'>('none');
+  
+  // State cho popup xác nhận thoát
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -32,9 +35,27 @@ const TopBar = ({ user, tasks, onUpdateUser, onLock, isSidebarOpen, onToggleSide
       setActivePopup(activePopup === popup ? 'none' : popup);
   };
 
+  // Hàm thực sự đóng ứng dụng sau khi xác nhận
+  const confirmCloseApp = async () => {
+      try {
+          // Kiểm tra nếu đang chạy trong Tauri
+          // @ts-ignore
+          if (window.__TAURI__) {
+              const { appWindow } = await import('@tauri-apps/api/window');
+              await appWindow.close();
+          } else {
+              // Fallback cho trình duyệt
+              window.close();
+          }
+      } catch (error) {
+          console.error("Không thể đóng ứng dụng:", error);
+      }
+  };
+
   if (!user) return null;
 
   return (
+    <>
     <div className="absolute top-6 right-6 z-50 flex items-start gap-3 pointer-events-auto">
       
       {/* SIDEBAR TOGGLE */}
@@ -52,7 +73,7 @@ const TopBar = ({ user, tasks, onUpdateUser, onLock, isSidebarOpen, onToggleSide
          <span className="text-sm font-mono font-bold text-zinc-200 tracking-widest">{formatTime(time)}</span>
       </div>
 
-      {/* INFO BUTTON (New) */}
+      {/* INFO BUTTON */}
       <div className="relative">
          <button 
             onClick={() => handleToggle('info')}
@@ -87,7 +108,7 @@ const TopBar = ({ user, tasks, onUpdateUser, onLock, isSidebarOpen, onToggleSide
       {/* LOCK */}
        <button 
             onClick={onLock}
-            className="p-2 rounded-full border border-white/5 bg-black/20 text-zinc-400 hover:text-red-400 hover:bg-black/40 transition-all"
+            className="p-2 rounded-full border border-white/5 bg-black/20 text-zinc-400 hover:text-white hover:bg-black/40 transition-all"
             title="Khóa màn hình"
          >
             <Lock size={20} />
@@ -107,12 +128,57 @@ const TopBar = ({ user, tasks, onUpdateUser, onLock, isSidebarOpen, onToggleSide
              </div>
          )}
       </div>
+      
+      {/* EXIT APP BUTTON (Kích hoạt popup xác nhận) */}
+      <button 
+        onClick={() => setShowExitConfirm(true)}
+        className="p-2 rounded-full border border-white/5 bg-black/20 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 transition-all"
+        title="Thoát ứng dụng"
+      >
+        <Power size={20} />
+      </button>
 
       {activePopup !== 'none' && (
           <div className="fixed inset-0 z-[-1]" onClick={() => setActivePopup('none')}></div>
       )}
-
     </div>
+
+    {/* EXIT CONFIRMATION MODAL */}
+    {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#18181b] border border-white/10 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 text-center space-y-4 animate-in zoom-in-95 duration-200 relative overflow-hidden">
+                {/* Background glow */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-red-500/20 blur-[50px] rounded-full pointer-events-none"></div>
+
+                <div className="relative w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto text-red-500 mb-2 border border-red-500/20">
+                    <DinoLogo size={28} className="drop-shadow-lg" />
+                </div>
+                
+                <div className="relative">
+                    <h3 className="text-xl font-bold text-white mb-1">Nghỉ rồi sao????</h3>
+                    <p className="text-sm text-zinc-400 leading-relaxed">
+                        Mới vừa làm đã nghỉ rồi, <span className="text-green-400 font-bold">bỏ DinoFocus</span> thật sao?
+                    </p>
+                </div>
+
+                <div className="flex gap-3 pt-2 relative z-10">
+                    <button
+                        onClick={() => setShowExitConfirm(false)}
+                        className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all font-bold text-sm"
+                    >
+                        Hủy
+                    </button>
+                    <button
+                        onClick={confirmCloseApp}
+                        className="flex-1 py-3 rounded-xl bg-red-600 text-white hover:bg-red-500 transition-all font-bold text-sm shadow-lg shadow-red-900/20 hover:shadow-red-900/40 active:scale-95"
+                    >
+                        Đồng ý
+                    </button>
+                </div>
+            </div>
+        </div>
+    )}
+    </>
   );
 };
 
