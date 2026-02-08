@@ -1,4 +1,4 @@
-export const DinoLogo = ({
+export const DinoIcon = ({
   size = 48,
   className = "",
 }: {

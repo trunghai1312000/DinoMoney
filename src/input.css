@@ -1,37 +1,34 @@
 @import "tailwindcss";
 
-:root {
-  font-family: 'Inter', system-ui, sans-serif;
-  background-color: #09090b; /* Đen sâu hơn */
-  color: #e4e4e7;
-  user-select: none;
-  cursor: default;
+@layer base {
+  body {
+    /* Màu nền mặc định là rất tối (Slate 950) và chữ sáng (Slate 100) cho Dark Mode */
+    @apply bg-slate-950 text-slate-100 font-sans antialiased;
+  }
+
+  /* Tùy chỉnh thanh cuộn cho đẹp hơn trên desktop */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-full hover:bg-slate-600;
+  }
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  overflow: hidden;
-}
+@layer components {
 
-/* Scrollbar ẩn */
-::-webkit-scrollbar {
-  width: 0px;
-  background: transparent;
-}
+  /* Class tiện ích cho các ô input để đồng bộ giao diện */
+  .input-primary {
+    @apply w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors placeholder-slate-600;
+  }
 
-/* Hiệu ứng kính mờ tinh tế hơn (ít viền sáng) */
-.glass-subtle {
-  @apply bg-black/40 backdrop-blur-xl border border-white/5 shadow-2xl;
-}
-
-/* Animation xuất hiện nhẹ */
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.fade-in {
-  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  .label-primary {
+    @apply text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block;
+  }
 }

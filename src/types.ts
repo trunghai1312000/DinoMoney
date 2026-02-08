@@ -1,77 +1,41 @@
-export interface UserSettings {
-  focusDuration?: number; // Cài đặt mặc định (phút)
-  weeklyGoal?: number;    // Mục tiêu giờ/tuần
-  highPerformance?: boolean;
-  sound?: boolean;
-  notifications?: boolean;
-  wallpaper?: {
-      url: string;
-      type: 'image' | 'video';
-  };
-}
+// src/types.ts
 
-export interface UserProfile {
-  id?: number;
-  username: string;
-  bio?: string;
-  avatarUrl?: string;
-  password?: string;
-  joinedAt: string;
-  settings?: UserSettings;
-}
+export type WalletKind = 'Cash' | 'Bank' | 'E-Wallet';
 
-export interface Subtask {
+export interface Wallet {
   id: string;
-  title: string;
-  completed: boolean;
+  name: string;
+  kind: WalletKind;
+  balance: number;
 }
 
-export interface Task {
+export interface Expense {
   id: string;
-  title: string;
-  status: string; // 'todo' | 'inprogress' | 'waiting' | 'done'
-  boardId: string;
-  dueDate?: string;
-  startDate?: string;
-  description?: string;
-  color?: string;
-  subtasks?: Subtask[];
-  createdAt: string;
+  amount: number;
+  category: string;
+  wallet_id: string;
+  date: string; // ISO String
+  note: string;
 }
 
-export interface Column {
-  id: string;
-  title: string;
-  color: string;
+export interface GoldSettings {
+  holdings: number;
+  last_price: number;
 }
 
-export interface Board {
-  id: string;
-  title: string;
-  isDefault: boolean;
-  columns: Column[];
+export interface AppSettings {
+  is_setup: number; // 0 or 1 (SQLite doesn't have boolean)
+  password_hash: string;
 }
 
-export interface Note {
-  id: string;
-  title: string;
-  content: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  colorBg: string;
-  colorBorder: string;
-  textColor: string;
-  isBold: boolean;
-  isItalic: boolean;
-  isUnderline: boolean;
-  rotate: number;
+export interface AuthStatus {
+  is_setup: boolean;
+  is_unlocked: boolean;
 }
 
-// MỚI: Interface cho phiên làm việc tập trung
-export interface FocusSession {
-  id: string;
-  duration: number; // Số phút
-  completedAt: string; // ISO Date
+// Dữ liệu tổng hợp để hiển thị Dashboard
+export interface DashboardData {
+  wallets: Wallet[];
+  expenses: Expense[];
+  gold: GoldSettings;
 }
