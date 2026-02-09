@@ -1,41 +1,57 @@
-// src/types.ts
+export type TransactionType = 'income' | 'expense';
 
-export type WalletKind = 'Cash' | 'Bank' | 'E-Wallet';
+export interface Category {
+  id: string;
+  name: string;
+  type: TransactionType;
+  icon?: string; // Tên icon hoặc emoji
+  isDefault?: boolean;
+}
+
+export interface Transaction {
+  id: string;
+  amount: number;
+  type: TransactionType;
+  category: string; // Lưu ID hoặc tên category
+  date: string; // ISO string
+  note?: string;
+  walletId?: string;
+}
 
 export interface Wallet {
   id: string;
   name: string;
-  kind: WalletKind;
   balance: number;
+  type: 'cash' | 'bank' | 'credit' | 'savings';
+  color: string;
 }
 
-export interface Expense {
+export interface GoldHolding {
   id: string;
-  amount: number;
-  category: string;
-  wallet_id: string;
-  date: string; // ISO String
-  note: string;
+  type: string; // SJC, Nhẫn trơn...
+  quantity: number; // Chỉ
+  buyPrice: number; // Giá mua vào (triệu VND/lượng)
+  buyDate: string;
 }
 
-export interface GoldSettings {
-  holdings: number;
-  last_price: number;
+export interface GoldPrice {
+  buy: number; // Giá mua vào của tiệm (mình bán)
+  sell: number; // Giá bán ra của tiệm (mình mua)
+  updatedAt: string;
 }
 
-export interface AppSettings {
-  is_setup: number; // 0 or 1 (SQLite doesn't have boolean)
-  password_hash: string;
+// API Response Types
+export interface GoldApiResponse {
+  success: boolean;
+  result: {
+    [key: string]: {
+      buy: string;
+      sell: string;
+    };
+  };
 }
 
-export interface AuthStatus {
-  is_setup: boolean;
-  is_unlocked: boolean;
-}
-
-// Dữ liệu tổng hợp để hiển thị Dashboard
-export interface DashboardData {
-  wallets: Wallet[];
-  expenses: Expense[];
-  gold: GoldSettings;
+export interface ApiKeyResponse {
+  success: boolean;
+  result: string; // The API Key
 }

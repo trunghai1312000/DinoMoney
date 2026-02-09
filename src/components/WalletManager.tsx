@@ -1,105 +1,124 @@
-import React, { useState } from 'react';
-import { Plus, Wallet as WalletIcon, Smartphone, Building2 } from 'lucide-react';
-import { Wallet } from '../services/db';
+import { useState } from 'react';
+import { useStore } from '../store/useStore';
+import { Wallet } from '../types';
+import { Trash2, Plus, CreditCard, Banknote, Wallet as WalletIcon } from 'lucide-react';
 
-interface WalletManagerProps {
-  wallets: Wallet[];
-  onAddWallet: (name: string, type: string, balance: number) => Promise<void>;
-}
+export default function WalletManager() {
+  const { wallets = [], addWallet, deleteWallet } = useStore(); // Default wallets = []
+  
+  const [name, setName] = useState('');
+  const [balance, setBalance] = useState('');
+  const [type, setType] = useState<Wallet['type']>('cash');
 
-const WalletManager: React.FC<WalletManagerProps> = ({ wallets, onAddWallet }) => {
-  const [name, setName] = useState("");
-  const [balance, setBalance] = useState("");
-  const [type, setType] = useState("bank");
+  const handleAddWallet = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) return;
 
-  const handleSubmit = async () => {
-    if (!name || !balance) return;
-    await onAddWallet(name, type, parseFloat(balance));
-    setName("");
-    setBalance("");
+    addWallet({
+      id: Date.now().toString(),
+      name,
+      balance: parseFloat(balance) || 0,
+      type,
+      color: '#3B82F6' // Default Blue
+    });
+
+    setName('');
+    setBalance('');
   };
 
   const getIcon = (type: string) => {
-      if (type === 'cash') return <WalletIcon size={20} />;
-      if (type === 'ewallet') return <Smartphone size={20} />;
-      return <Building2 size={20} />;
-  }
+    switch(type) {
+      case 'bank': return <Banknote className="w-6 h-6" />;
+      case 'credit': return <CreditCard className="w-6 h-6" />;
+      default: return <WalletIcon className="w-6 h-6" />;
+    }
+  };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-       {/* Danh sách ví */}
-       <div className="space-y-3">
-         {wallets.map(w => (
-           <div key={w.id} className="bg-black/30 backdrop-blur-md p-5 rounded-2xl border border-white/5 flex justify-between items-center group hover:border-[#05df72]/40 transition-all">
-             <div className="flex items-center gap-4">
-               <div className={`p-3 rounded-xl ${w.type === 'cash' ? 'bg-[#05df72]/10 text-[#05df72]' : 'bg-sky-500/10 text-sky-400'}`}>
-                   {getIcon(w.type)}
-               </div>
-               <div>
-                 <h3 className="font-bold text-sm text-white group-hover:text-[#05df72] transition-colors">{w.name}</h3>
-                 <span className="text-[9px] uppercase tracking-wider bg-white/5 text-gray-500 px-2 py-0.5 rounded border border-white/5">{w.type === 'cash' ? 'Tiền mặt' : w.type === 'ewallet' ? 'Ví điện tử' : 'Ngân hàng'}</span>
-               </div>
-             </div>
-             <p className="text-lg font-bold font-mono text-white">{w.balance.toLocaleString()} đ</p>
-           </div>
-         ))}
-       </div>
-       
-       {/* Form thêm ví */}
-       <div className="bg-black/30 backdrop-blur-md p-8 rounded-3xl border border-white/5 h-fit shadow-lg">
-          <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 uppercase tracking-widest">
-            <Plus className="text-[#05df72]" size={16} /> Liên kết tài khoản
-          </h3>
-          <div className="space-y-5">
-            <div>
-                <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 block font-bold">Loại tài khoản</label>
-                <div className="grid grid-cols-2 gap-3">
-                    <button 
-                        onClick={() => setType('bank')} 
-                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${type === 'bank' ? 'border-[#05df72] bg-[#05df72]/10 text-white' : 'border-white/10 bg-black/20 text-gray-500 hover:border-white/20'}`}
-                    >
-                        <Building2 size={18} /> <span className="text-xs font-bold">Ngân hàng</span>
-                    </button>
-                    <button 
-                        onClick={() => setType('ewallet')} 
-                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${type === 'ewallet' ? 'border-[#05df72] bg-[#05df72]/10 text-white' : 'border-white/10 bg-black/20 text-gray-500 hover:border-white/20'}`}
-                    >
-                        <Smartphone size={18} /> <span className="text-xs font-bold">Ví điện tử</span>
-                    </button>
-                </div>
-            </div>
+    <div className="space-y-6">
+      <h2 className="text-3xl font-bold text-gradient-blue">
+        Quản Lý Ví 💳
+      </h2>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Form thêm ví - Giao diện tối */}
+        <div className="glass-panel p-6 rounded-2xl h-fit">
+          <h3 className="text-xl font-semibold mb-4 text-blue-400">Thêm ví mới</h3>
+          <form onSubmit={handleAddWallet} className="space-y-4">
             <div>
-                <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 block font-bold">Tên hiển thị</label>
-                <input 
-                    placeholder="VD: Techcombank, Momo..." 
-                    className="w-full bg-black/50 border border-white/10 rounded-xl p-3.5 text-white focus:border-[#05df72] outline-none transition-all text-sm placeholder-gray-700"
-                    value={name} 
-                    onChange={(e) => setName(e.target.value)} 
-                />
+              <label className="block text-sm text-gray-400 mb-1">Tên ví</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-3 rounded-lg glass-input"
+                placeholder="Ví dụ: Techcombank"
+              />
             </div>
-            
             <div>
-                <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 block font-bold">Số dư hiện tại</label>
-                <input 
-                    type="number" 
-                    placeholder="0" 
-                    className="w-full bg-black/50 border border-white/10 rounded-xl p-3.5 text-white focus:border-[#05df72] outline-none transition-all font-mono text-sm placeholder-gray-700"
-                    value={balance} 
-                    onChange={(e) => setBalance(e.target.value)} 
-                />
+              <label className="block text-sm text-gray-400 mb-1">Số dư ban đầu</label>
+              <input
+                type="number"
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                className="w-full p-3 rounded-lg glass-input"
+                placeholder="0"
+              />
             </div>
-
-            <button 
-              onClick={handleSubmit} 
-              className="w-full bg-[#05df72] hover:bg-[#04c463] text-black font-black uppercase tracking-widest py-4 rounded-xl transition-all shadow-[0_0_20px_-5px_rgba(5,223,114,0.4)] mt-4 text-xs"
-            >
-              Thêm tài khoản
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Loại ví</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as any)}
+                className="w-full p-3 rounded-lg glass-input bg-gray-900"
+              >
+                <option value="cash">Tiền mặt</option>
+                <option value="bank">Ngân hàng</option>
+                <option value="credit">Thẻ tín dụng</option>
+                <option value="savings">Tiết kiệm</option>
+              </select>
+            </div>
+            <button type="submit" className="w-full py-3 rounded-lg glass-button font-bold flex items-center justify-center gap-2">
+              <Plus size={18} /> Tạo ví
             </button>
-          </div>
-       </div>
+          </form>
+        </div>
+
+        {/* Danh sách ví - Grid */}
+        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* SAFE GUARD: (wallets || []) để tránh lỗi map undefined */}
+          {(wallets || []).map((wallet) => (
+            <div key={wallet.id} className="glass-panel p-6 rounded-2xl relative group hover:border-blue-500/50 transition-all">
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
+                  {getIcon(wallet.type)}
+                </div>
+                {wallets.length > 1 && (
+                  <button 
+                    onClick={() => deleteWallet(wallet.id)}
+                    className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
+              
+              <h4 className="text-gray-400 font-medium mb-1">{wallet.name}</h4>
+              <p className="text-2xl font-bold text-white">
+                {wallet.balance.toLocaleString()} <span className="text-sm text-gray-500">VND</span>
+              </p>
+              
+              <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-transparent opacity-50 rounded-b-2xl"></div>
+            </div>
+          ))}
+
+          {(wallets || []).length === 0 && (
+             <div className="col-span-2 text-center text-gray-500 py-10 glass-panel rounded-2xl border-dashed">
+               Chưa có ví nào. Hãy tạo ví đầu tiên!
+             </div>
+          )}
+        </div>
+      </div>
     </div>
   );
-};
-
-export default WalletManager;
+}

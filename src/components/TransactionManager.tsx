@@ -1,168 +1,281 @@
-import React, { useState } from 'react';
-import { TrendingDown, TrendingUp, PlusCircle, List, Edit3, ArrowRight } from 'lucide-react';
-import { Wallet, Transaction } from '../services/db';
+import { useState } from 'react';
+import { useStore } from '../store/useStore';
+import { format, isSameDay, isSameMonth, parseISO } from 'date-fns';
+import { TransactionType, Category } from '../types';
+import { Plus, X, Trash2 } from 'lucide-react'; // Import icons
 
-interface TransactionManagerProps {
-  wallets: Wallet[];
-  transactions: Transaction[];
-  onAddTransaction: (walletId: number, amount: number, type: 'income' | 'expense', category: string, desc: string) => Promise<void>;
-}
+export default function TransactionManager() {
+  const { transactions, addTransaction, deleteTransaction, categories, addCategory, deleteCategory } = useStore();
+  const [activeTab, setActiveTab] = useState<'record' | 'history'>('record');
+  
+  // State form nhập liệu
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [type, setType] = useState<TransactionType>('expense');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  
+  // State filter history
+  const [filterDate, setFilterDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [filterMode, setFilterMode] = useState<'day' | 'month'>('day');
 
-const EXPENSE_CATEGORIES = ["Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Y tế", "Khác"];
-const INCOME_CATEGORIES = ["Lương", "Thưởng", "Đầu tư", "Bán hàng", "Quà tặng", "Khác"];
+  // State Manage Categories Modal
+  const [isManagingCats, setIsManagingCats] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('📝');
 
-const TransactionManager: React.FC<TransactionManagerProps> = ({ wallets, transactions, onAddTransaction }) => {
-  const [activeTab, setActiveTab] = useState<'form' | 'list'>('form');
+  // -- LOGIC --
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || !selectedCategory) return;
 
-  // Form State
-  const [type, setType] = useState<'expense' | 'income'>('expense');
-  const [selectedWalletId, setSelectedWalletId] = useState<number | string>(wallets[0]?.id || "");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
-  const [desc, setDesc] = useState("");
+    addTransaction({
+      id: Date.now().toString(),
+      amount: parseFloat(amount),
+      type,
+      category: selectedCategory,
+      date: new Date().toISOString(),
+      note
+    });
 
-  const handleSubmit = async () => {
-    if (!selectedWalletId || !amount || !category) {
-      alert("Vui lòng nhập đủ thông tin");
-      return;
-    }
-    await onAddTransaction(Number(selectedWalletId), parseFloat(amount), type, category, desc || category);
-    setAmount("");
-    setDesc("");
-    alert("Đã lưu giao dịch!");
+    // Reset form
+    setAmount('');
+    setNote('');
   };
 
-  const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const handleAddCategory = () => {
+    if (!newCatName) return;
+    addCategory({
+      id: `cat_${Date.now()}`,
+      name: newCatName,
+      type: type, // Thêm vào loại hình đang chọn (Thu hoặc Chi)
+      isDefault: false,
+      icon: newCatIcon
+    });
+    setNewCatName('');
+  };
+
+  const filteredTransactions = (transactions || []).filter(t => {
+    const tDate = parseISO(t.date);
+    const fDate = parseISO(filterDate);
+    
+    if (activeTab === 'record') {
+      return isSameDay(tDate, new Date()); // Chỉ hiện hôm nay
+    }
+    
+    if (filterMode === 'day') {
+      return isSameDay(tDate, fDate);
+    } else {
+      return isSameMonth(tDate, fDate);
+    }
+  });
+
+  // Lọc category theo loại đang chọn
+  const currentCategories = (categories || []).filter(c => c.type === type);
 
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto">
-      
-      {/* Tab Switcher */}
-      <div className="flex bg-black/40 p-1 rounded-xl border border-white/10 w-fit mx-auto mb-8 backdrop-blur-md">
-        <button onClick={() => setActiveTab('form')} className={`px-8 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'form' ? 'bg-[#05df72] text-black shadow-[0_0_15px_-5px_#05df72]' : 'text-gray-500 hover:text-white'}`}>
-            <Edit3 size={14} /> Ghi Chép
-        </button>
-        <button onClick={() => setActiveTab('list')} className={`px-8 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'list' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>
-            <List size={14} /> Lịch Sử GD
-        </button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
+          Sổ Thu Chi 💸
+        </h2>
+        <div className="flex bg-white/10 rounded-lg p-1">
+          <button 
+            onClick={() => setActiveTab('record')}
+            className={`px-4 py-2 rounded-md transition-all ${activeTab === 'record' ? 'bg-green-500 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+          >
+            Ghi chép
+          </button>
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`px-4 py-2 rounded-md transition-all ${activeTab === 'history' ? 'bg-blue-500 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+          >
+            Lịch sử
+          </button>
+        </div>
       </div>
 
-      {activeTab === 'form' && (
-        <div className="bg-black/30 backdrop-blur-md p-10 rounded-3xl border border-white/5 shadow-2xl">
-            {/* Type Selector */}
-            <div className="flex bg-black/50 p-1.5 rounded-xl mb-8 border border-white/10">
-                <button 
-                    onClick={() => { setType('expense'); setCategory(EXPENSE_CATEGORIES[0]); }}
-                    className={`flex-1 py-4 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${type === 'expense' ? 'bg-rose-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                >
-                    <TrendingDown size={18} /> Khoản Chi
-                </button>
-                <button 
-                    onClick={() => { setType('income'); setCategory(INCOME_CATEGORIES[0]); }}
-                    className={`flex-1 py-4 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${type === 'income' ? 'bg-[#05df72] text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                >
-                    <TrendingUp size={18} /> Khoản Thu
-                </button>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Cột Trái: Form nhập liệu (Chỉ hiện ở Tab Record) */}
+        {activeTab === 'record' && (
+          <div className="glass-panel rounded-2xl p-6 h-fit relative">
+            <h3 className="text-xl font-semibold text-white mb-4">Giao dịch mới</h3>
 
-            <div className="space-y-6">
-                <div>
-                    <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 block font-bold">Nguồn tiền</label>
-                    <select 
-                    className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white focus:border-[#05df72] outline-none appearance-none text-sm transition-all"
-                    value={selectedWalletId}
-                    onChange={(e) => setSelectedWalletId(e.target.value)}
-                    >
-                    <option value="" disabled>-- Chọn ví --</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} (Còn: {w.balance.toLocaleString()} đ)</option>)}
-                    </select>
-                </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Switch Thu/Chi */}
+              <div className="flex gap-2 p-1 bg-black/20 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setType('expense')}
+                  className={`flex-1 py-2 rounded-md transition-all font-medium ${type === 'expense' ? 'bg-red-500/80 text-white shadow' : 'text-gray-400'}`}
+                >
+                  Chi tiền
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('income')}
+                  className={`flex-1 py-2 rounded-md transition-all font-medium ${type === 'income' ? 'bg-green-500/80 text-white shadow' : 'text-gray-400'}`}
+                >
+                  Thu tiền
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Số tiền</label>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full p-3 rounded-lg glass-input text-lg font-bold text-green-400"
+                  placeholder="0"
+                />
+              </div>
+
+              {/* Phần Chọn Category với nút Quản lý */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1 flex justify-between">
+                   Danh mục
+                   <button 
+                     type="button"
+                     onClick={() => setIsManagingCats(!isManagingCats)}
+                     className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                   >
+                     {isManagingCats ? 'Đóng' : '+ Quản lý'}
+                   </button>
+                </label>
                 
-                <div className="grid grid-cols-2 gap-6">
-                    <div>
-                        <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 block font-bold">Số tiền (VNĐ)</label>
-                        <input 
-                            type="number" 
-                            placeholder="0" 
-                            className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white focus:border-[#05df72] outline-none transition-all font-mono text-lg placeholder-gray-700"
-                            value={amount} 
-                            onChange={(e) => setAmount(e.target.value)} 
-                        />
+                {/* Khu vực thêm/xóa category */}
+                {isManagingCats && (
+                  <div className="mb-2 p-3 bg-white/5 rounded-lg border border-white/10 animate-fade-in">
+                    <div className="flex gap-2 mb-3">
+                      <input 
+                         value={newCatName}
+                         onChange={e => setNewCatName(e.target.value)}
+                         placeholder="Tên danh mục mới..."
+                         className="flex-1 p-2 rounded glass-input text-sm"
+                      />
+                      <button 
+                         type="button" 
+                         onClick={handleAddCategory}
+                         className="bg-blue-600 hover:bg-blue-500 px-3 rounded text-white flex items-center"
+                      >
+                         <Plus size={16} />
+                      </button>
                     </div>
-                    <div>
-                        <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 block font-bold">Danh mục</label>
-                        <select 
-                            className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white focus:border-[#05df72] outline-none appearance-none text-sm transition-all"
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                        >
-                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {currentCategories.map(c => (
+                        <div key={c.id} className="flex justify-between items-center bg-black/20 px-2 py-1 rounded text-sm">
+                           <span>{c.icon} {c.name}</span>
+                           {!c.isDefault && (
+                             <button 
+                               type="button" 
+                               onClick={() => deleteCategory(c.id)}
+                               className="text-red-400 hover:text-red-300"
+                             >
+                               <Trash2 size={14} />
+                             </button>
+                           )}
+                        </div>
+                      ))}
                     </div>
-                </div>
+                  </div>
+                )}
 
-                <div>
-                    <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 block font-bold">Ghi chú (Tùy chọn)</label>
-                    <input 
-                        placeholder="VD: Ăn trưa, Lương tháng 10..." 
-                        className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white focus:border-[#05df72] outline-none transition-all text-sm placeholder-gray-700"
-                        value={desc} 
-                        onChange={(e) => setDesc(e.target.value)} 
-                    />
-                </div>
-
-                <button 
-                    onClick={handleSubmit} 
-                    className={`w-full font-black uppercase tracking-widest py-5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-6 text-sm hover:scale-[1.01] active:scale-95 ${
-                        type === 'expense' 
-                        ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/20' 
-                        : 'bg-[#05df72] hover:bg-[#04c463] text-black shadow-[#05df72]/20'
-                    }`}
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full p-3 rounded-lg glass-input bg-slate-800 appearance-none"
                 >
-                    <PlusCircle size={18}/> {type === 'expense' ? 'Xác Nhận Chi Tiêu' : 'Xác Nhận Thu Nhập'}
-                </button>
-            </div>
-        </div>
-      )}
+                  <option value="">-- Chọn danh mục --</option>
+                  {currentCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                  ))}
+                </select>
+              </div>
 
-      {activeTab === 'list' && (
-          <div className="bg-black/30 backdrop-blur-md border border-white/5 rounded-3xl overflow-hidden shadow-lg h-[600px] flex flex-col">
-             <div className="p-6 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
-                 <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest">Danh sách giao dịch</h3>
-                 <span className="text-[10px] text-gray-600 uppercase font-bold">{transactions.length} bản ghi</span>
-             </div>
-             <div className="overflow-y-auto custom-scrollbar flex-1 p-2">
-                 <table className="w-full text-left border-collapse">
-                    <thead className="text-gray-500 uppercase text-[10px] font-bold tracking-wider sticky top-0 bg-[#111] z-10">
-                        <tr>
-                        <th className="p-4 rounded-l-lg">Ngày</th>
-                        <th className="p-4">Danh mục</th>
-                        <th className="p-4">Nội dung</th>
-                        <th className="p-4 text-right rounded-r-lg">Số tiền</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                        {transactions.map(t => (
-                        <tr key={t.id} className="hover:bg-white/5 transition-colors group">
-                            <td className="p-4 text-gray-500 font-mono text-xs w-32">{new Date(t.date).toLocaleDateString()}</td>
-                            <td className="p-4">
-                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${t.type === 'income' ? 'bg-[#05df72]/10 border-[#05df72]/30 text-[#05df72]' : 'bg-rose-500/10 border-rose-500/30 text-rose-500'}`}>
-                                    {t.category}
-                                </span>
-                            </td>
-                            <td className="p-4 text-sm text-gray-300">{t.description}</td>
-                            <td className={`p-4 font-bold text-right font-mono text-sm ${t.type === 'income' ? 'text-[#05df72]' : 'text-rose-500'}`}>
-                                {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString()}
-                            </td>
-                        </tr>
-                        ))}
-                    </tbody>
-                 </table>
-             </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Ghi chú</label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="w-full p-3 rounded-lg glass-input"
+                  rows={2}
+                  placeholder="Mua gì đó..."
+                />
+              </div>
+
+              <button type="submit" className="w-full py-3 rounded-lg glass-button font-bold text-lg">
+                Lưu giao dịch
+              </button>
+            </form>
           </div>
-      )}
+        )}
+
+        {/* Cột Phải: Danh sách giao dịch */}
+        <div className={`${activeTab === 'record' ? 'lg:col-span-2' : 'lg:col-span-3'} glass-panel rounded-2xl p-6 min-h-[500px] flex flex-col`}>
+          <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
+            <h3 className="text-xl font-semibold text-white">
+              {activeTab === 'record' ? 'Giao dịch hôm nay' : 'Lịch sử giao dịch'}
+            </h3>
+            
+            {activeTab === 'history' && (
+              <div className="flex gap-2">
+                <select 
+                  value={filterMode} 
+                  onChange={(e) => setFilterMode(e.target.value as 'day'|'month')}
+                  className="glass-input p-2 rounded-lg bg-slate-800 text-sm"
+                >
+                  <option value="day">Theo ngày</option>
+                  <option value="month">Theo tháng</option>
+                </select>
+                <input 
+                  type={filterMode === 'day' ? 'date' : 'month'}
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="glass-input p-2 rounded-lg bg-slate-800 text-sm"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+            {filteredTransactions.length === 0 ? (
+              <div className="text-center text-gray-500 mt-10">
+                <p className="text-6xl mb-4">💤</p>
+                <p>Không có giao dịch nào {activeTab === 'record' ? 'hôm nay' : 'trong khoảng thời gian này'}</p>
+              </div>
+            ) : (
+              filteredTransactions.map((t) => {
+                const cat = (categories || []).find(c => c.id === t.category);
+                return (
+                  <div key={t.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${t.type === 'income' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {cat?.icon || (t.type === 'income' ? '⬇️' : '⬆️')}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">{cat?.name || 'Khác'}</p>
+                        <p className="text-xs text-gray-400">{t.note} • {format(parseISO(t.date), 'HH:mm dd/MM')}</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex items-center gap-3">
+                      <p className={`font-bold ${t.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                        {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString()}
+                      </p>
+                      <button 
+                        onClick={() => deleteTransaction(t.id)}
+                        className="p-2 rounded-full hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
+                        title="Xóa giao dịch"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
-};
-
-export default TransactionManager;
+}

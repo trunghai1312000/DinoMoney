@@ -1,30 +1,40 @@
 import React from 'react';
+import { useStore } from '../store/useStore';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingDown, CreditCard, Banknote, Coins } from 'lucide-react';
-import { Wallet, Expense } from '../services/db';
+import { format } from 'date-fns';
 
-interface DashboardProps {
-  wallets: Wallet[];
-  totalGoldValue: number;
-  expenses: Expense[];
-}
-
-// Màu mới tối hơn, ngầu hơn
+// Màu sắc bạn yêu cầu: Tối hơn, ngầu hơn
 const COLORS = ['#05df72', '#0ea5e9', '#eab308', '#f43f5e'];
 
-const Dashboard: React.FC<DashboardProps> = ({ wallets, totalGoldValue, expenses }) => {
+export default function Dashboard() {
+  // 1. Lấy dữ liệu từ Store
+  const { transactions = [], wallets = [], currentGoldPrice, goldHoldings = [], categories } = useStore();
+
+  // 2. Xử lý logic tính toán (Thay vì nhận props)
   const cashWallets = wallets.filter(w => w.type === 'cash');
   const digitalWallets = wallets.filter(w => w.type !== 'cash');
 
   const totalCash = cashWallets.reduce((sum, w) => sum + w.balance, 0);
   const totalDigital = digitalWallets.reduce((sum, w) => sum + w.balance, 0);
+
+  // Lọc ra danh sách chi tiêu (Expenses)
+  const expenses = (transactions || []).filter(t => t.type === 'expense');
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
+
+  // Tính giá trị vàng
+  const totalGoldValue = (goldHoldings || []).reduce((sum, g) => {
+    const price = currentGoldPrice?.buy || 0;
+    return sum + (g.quantity * price);
+  }, 0);
 
   const chartData = [
     { name: 'Tiền mặt', value: totalCash },
     { name: 'Ngân hàng/Ví', value: totalDigital },
     { name: 'Vàng', value: totalGoldValue },
   ].filter(i => i.value > 0);
+
+  const totalAssets = totalCash + totalDigital + totalGoldValue;
 
   return (
     <div className="space-y-6 animate-fade-in text-white">
@@ -85,7 +95,7 @@ const Dashboard: React.FC<DashboardProps> = ({ wallets, totalGoldValue, expenses
           {/* Center Text */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none mt-4">
              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Tổng cộng</span>
-             <p className="text-xl font-bold text-white font-mono">{(totalCash + totalDigital + totalGoldValue).toLocaleString()}</p>
+             <p className="text-xl font-bold text-white font-mono">{totalAssets.toLocaleString()}</p>
           </div>
         </div>
 
@@ -93,20 +103,31 @@ const Dashboard: React.FC<DashboardProps> = ({ wallets, totalGoldValue, expenses
         <div className="bg-black/30 backdrop-blur-md border border-white/5 rounded-3xl p-6 h-96 overflow-y-auto custom-scrollbar hover:border-white/10 transition-colors">
           <h3 className="text-xs font-bold mb-6 text-gray-400 uppercase tracking-widest">GIAO DỊCH GẦN ĐÂY</h3>
           <div className="space-y-2">
-            {expenses.slice(0, 10).map(exp => (
-                <div key={exp.id} className="group flex justify-between items-center p-3.5 bg-white/[0.03] rounded-xl border border-white/5 hover:border-[#05df72]/30 hover:bg-[#05df72]/5 transition-all cursor-default">
-                  <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500">
-                        <TrendingDown size={14} />
-                    </div>
-                    <div>
-                        <p className="font-bold text-sm text-gray-200 group-hover:text-[#05df72] transition-colors">{exp.description}</p>
-                        <p className="text-[10px] text-gray-600 font-mono">{new Date(exp.date).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <span className="text-rose-400 font-bold font-mono text-sm">-{exp.amount.toLocaleString()}</span>
-                </div>
-            ))}
+            {expenses.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center mt-10">Chưa có chi tiêu nào gần đây</p>
+            ) : (
+                expenses.slice(0, 10).map(exp => {
+                    const catName = categories.find(c => c.id === exp.category)?.name || 'Khác';
+                    return (
+                        <div key={exp.id} className="group flex justify-between items-center p-3.5 bg-white/[0.03] rounded-xl border border-white/5 hover:border-[#05df72]/30 hover:bg-[#05df72]/5 transition-all cursor-default">
+                          <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500">
+                                <TrendingDown size={14} />
+                            </div>
+                            <div>
+                                <p className="font-bold text-sm text-gray-200 group-hover:text-[#05df72] transition-colors">
+                                    {exp.note || catName}
+                                </p>
+                                <p className="text-[10px] text-gray-600 font-mono">
+                                    {format(new Date(exp.date), 'dd/MM/yyyy')}
+                                </p>
+                            </div>
+                          </div>
+                          <span className="text-rose-400 font-bold font-mono text-sm">-{exp.amount.toLocaleString()}</span>
+                        </div>
+                    );
+                })
+            )}
           </div>
         </div>
       </div>
@@ -128,5 +149,3 @@ const SummaryCard = ({ title, value, icon, color }: any) => (
     </div>
   </div>
 );
-
-export default Dashboard;
