@@ -4,7 +4,7 @@ export interface Category {
   id: string;
   name: string;
   type: TransactionType;
-  icon?: string; // Tên icon hoặc emoji
+  icon?: string;
   isDefault?: boolean;
 }
 
@@ -12,46 +12,47 @@ export interface Transaction {
   id: string;
   amount: number;
   type: TransactionType;
-  category: string; // Lưu ID hoặc tên category
+  category: string;
   date: string; // ISO string
   note?: string;
-  walletId?: string;
+  walletId: string; // Bắt buộc phải chọn nguồn tiền
 }
 
 export interface Wallet {
   id: string;
   name: string;
   balance: number;
-  type: 'cash' | 'bank' | 'credit' | 'savings';
+  type: 'bank' | 'ewallet' | 'credit' | 'savings' | 'cash';
   color: string;
+  accountNumber?: string;
 }
 
 export interface GoldHolding {
   id: string;
-  type: string; // SJC, Nhẫn trơn...
-  quantity: number; // Chỉ
-  buyPrice: number; // Giá mua vào (triệu VND/lượng)
+  type: string;
+  quantity: number;
+  buyPrice: number;
   buyDate: string;
 }
 
 export interface GoldPrice {
-  buy: number; // Giá mua vào của tiệm (mình bán)
-  sell: number; // Giá bán ra của tiệm (mình mua)
+  buy: number;
+  sell: number;
   updatedAt: string;
 }
 
-// API Response Types
-export interface GoldApiResponse {
-  success: boolean;
-  result: {
-    [key: string]: {
-      buy: string;
-      sell: string;
-    };
-  };
+export interface GoldPriceRecord {
+  timestamp: string;
+  buy: number;
+  sell: number;
 }
 
-export interface ApiKeyResponse {
-  success: boolean;
-  result: string; // The API Key
+export interface GoldApiResult {
+    buy_nutrang_9999: string;
+    sell_nutrang_9999: string;
+    datetime: string;
+}
+
+export interface GoldApiResponse {
+  results: GoldApiResult[];
 }

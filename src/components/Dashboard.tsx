@@ -4,28 +4,26 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingDown, CreditCard, Banknote, Coins } from 'lucide-react';
 import { format } from 'date-fns';
 
-// Màu sắc bạn yêu cầu: Tối hơn, ngầu hơn
 const COLORS = ['#05df72', '#0ea5e9', '#eab308', '#f43f5e'];
 
 export default function Dashboard() {
-  // 1. Lấy dữ liệu từ Store
   const { transactions = [], wallets = [], currentGoldPrice, goldHoldings = [], categories } = useStore();
 
-  // 2. Xử lý logic tính toán (Thay vì nhận props)
   const cashWallets = wallets.filter(w => w.type === 'cash');
   const digitalWallets = wallets.filter(w => w.type !== 'cash');
 
   const totalCash = cashWallets.reduce((sum, w) => sum + w.balance, 0);
   const totalDigital = digitalWallets.reduce((sum, w) => sum + w.balance, 0);
 
-  // Lọc ra danh sách chi tiêu (Expenses)
   const expenses = (transactions || []).filter(t => t.type === 'expense');
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
 
-  // Tính giá trị vàng
   const totalGoldValue = (goldHoldings || []).reduce((sum, g) => {
+    // Nếu là vàng 9999 (SJC, Nhẫn) thì dùng giá thị trường
+    // Nếu là nữ trang thì có thể tính theo giá mua hoặc giá thị trường tùy logic (ở đây tạm tính theo giá thị trường SJC cho đơn giản hoặc giá mua nếu muốn bảo toàn giá trị)
+    // Để chính xác nhất: Vàng 9999 * giá SJC mua vào. Vàng nữ trang thì giữ nguyên giá trị mua hoặc tính khấu hao (ở đây ta tạm dùng giá SJC cho chuẩn chung để tính tài sản ròng)
     const price = currentGoldPrice?.buy || 0;
-    return sum + (g.quantity * price);
+    return sum + (g.quantity * price); // quantity quy đổi ra chỉ
   }, 0);
 
   const chartData = [
@@ -67,7 +65,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Transparent Chart Card */}
+        {/* Chart Card */}
         <div className="bg-black/30 backdrop-blur-md border border-white/5 rounded-3xl p-6 h-96 relative overflow-hidden group hover:border-white/10 transition-colors">
           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-[#05df72] to-transparent opacity-50"></div>
           <h3 className="text-xs font-bold mb-4 text-gray-400 uppercase tracking-widest">CƠ CẤU TÀI SẢN</h3>
@@ -92,14 +90,13 @@ export default function Dashboard() {
               />
             </PieChart>
           </ResponsiveContainer>
-          {/* Center Text */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none mt-4">
              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Tổng cộng</span>
              <p className="text-xl font-bold text-white font-mono">{totalAssets.toLocaleString()}</p>
           </div>
         </div>
 
-        {/* Recent Transactions List */}
+        {/* Transactions List */}
         <div className="bg-black/30 backdrop-blur-md border border-white/5 rounded-3xl p-6 h-96 overflow-y-auto custom-scrollbar hover:border-white/10 transition-colors">
           <h3 className="text-xs font-bold mb-6 text-gray-400 uppercase tracking-widest">GIAO DỊCH GẦN ĐÂY</h3>
           <div className="space-y-2">
@@ -141,7 +138,8 @@ const SummaryCard = ({ title, value, icon, color }: any) => (
     <div className="flex justify-between items-start">
         <div>
             <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.2em] mb-2">{title}</p>
-            <p className="text-xl font-bold text-white font-mono group-hover:translate-x-1 transition-transform">{value.toLocaleString()}</p>
+            {/* Đã xóa group-hover:translate-x-1 để fix lỗi nhảy số */}
+            <p className="text-xl font-bold text-white font-mono transition-transform">{value.toLocaleString()}</p>
         </div>
         <div className="opacity-40 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0 transform group-hover:scale-110 duration-300">
             {icon}

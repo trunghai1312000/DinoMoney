@@ -1,7 +1,6 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 
 use tauri::{
-    tray::{TrayIconBuilder, TrayIconEvent},
     Manager,
 };
 

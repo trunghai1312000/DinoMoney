@@ -8,6 +8,7 @@ interface SidebarProps {
   onLock: () => void;
 }
 
+
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onLock }) => {
   return (
     <aside className="w-64 bg-black/40 backdrop-blur-2xl border-r border-white/5 flex flex-col h-full relative z-20 shadow-[5px_0_30px_rgba(0,0,0,0.5)]">
