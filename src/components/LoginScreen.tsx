@@ -37,7 +37,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isSetup, onLogin, errorMsg })
                     <DinoIcon className="w-10 h-10" />
                 </div>
                 <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">DinoMoney</h1>
-                <p className="text-gray-500 font-mono text-sm">Secure Financial Terminal v2.1</p>
+                <p className="text-gray-500 font-mono text-sm">Secure Financial Terminal 1.0</p>
              </div>
 
              <div className="space-y-6">
